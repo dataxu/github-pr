@@ -1,0 +1,177 @@
+#!/usr/bin/env python
+import argparse
+import sys
+import os
+from github import Github
+
+def _check_required_fields(required, **args):
+    for i in required:
+        if args[i] == None:
+            print 'Error: %s parameter not set' % i
+            sys.exit(1)
+
+def _print_pr(pr, **args):
+    if args['numberonly']:
+        print "%d" % pr.number
+    else:
+        print "#%d [%s] %10s <- %-30s    %s" % (pr.number, pr.state, pr.base.ref, pr.head.ref, pr.title)
+        if 'matching_files' in args:
+            for f in args['matching_files']:
+                print f
+
+def _print_issue(issue, **args):
+    if args['numberonly']:
+        print "%d" % issue.number
+    else:
+        print "#%d [%s]  %s" % (issue.number, issue.state, issue.title)
+
+def _load_pr(**args):
+    _check_required_fields(['token', 'repo', 'number'], **args)
+    gh = Github(args['token'])
+    repo = gh.get_repo(args['repo'])
+    return repo.get_pull(args['number'])
+
+def _load_pr_by_branch(**args):
+    _check_required_fields(['token', 'repo', 'head'], **args)
+    gh = Github(args['token'])
+    repo = gh.get_repo(args['repo'])
+    pulls = [pr for pr in repo.get_pulls() if pr.head.ref == args['head'] and pr.base.ref == args['base']]
+    if len(pulls) is not 1:
+        print "Probable error, found {0} pull(s) from {1} -> {2} (expected 1)".format(len(pulls), args['head'], args['base'])
+        for pull in pulls:
+            print "#{0} : {1} : {2} -> {3}".format(pull.number, pull.state, pull.head.ref, pull.base.ref)
+    return pulls[0]
+
+def _load_issue(**args):
+    """Load the PR as an issue to enable actions like set_labels"""
+    _check_required_fields(['token', 'repo', 'number'], **args)
+    gh = Github(args['token'])
+    repo = gh.get_repo(args['repo'])
+    return repo.get_issue(args['number'])
+
+def github_create_pr(**args):
+    _check_required_fields(['token', 'repo', 'title', 'body', 'base', 'head'], **args)
+    gh = Github(args['token'])
+    repo = gh.get_repo(args['repo'])
+    pr = repo.create_pull(title=args['title'], body=args['body'], base=args['base'], head=args['head'])
+    if args['label']:
+        args['number'] = pr.number
+        github_add_labels(**args)
+    _print_pr(pr, **args)
+
+def github_list_prs(**args):
+    _check_required_fields(['token', 'repo'], **args)
+    gh = Github(args['token'])
+    repo = gh.get_repo(args['repo'])
+
+    if args['number']:
+        pr = repo.get_pull(args['number'])
+        if args['files']:
+            pr_files = pr.get_files()
+            args['matching_files'] = [f.filename for f in pr_files]
+        _print_pr(pr, **args)
+    elif args['label']:
+        label_list = [repo.get_label(label) for label in args['label']]
+        issues = repo.get_issues(labels=label_list)
+        for issue in issues:
+            _print_issue(issue, **args)
+    else:
+        prs = repo.get_pulls()
+        for pr in prs:
+            _print_pr(pr, **args)
+
+def github_merge_pr_by_number(**args):
+    _check_required_fields(['token', 'repo', 'number'], **args)
+    pr = _load_pr(**args)
+    pr.merge()
+
+def github_merge_pr_by_branch(**args):
+    _check_required_fields(['token', 'repo', 'head'], **args)
+    pr = _load_pr_by_branch(**args)
+    pr.merge()
+
+def github_comment_pr(**args):
+    _check_required_fields(['body'], **args)
+    pr = _load_pr(**args)
+    pr.create_issue_comment(args['body'])
+
+def github_delete_pr(**args):
+    pr = _load_pr(**args)
+    pr.edit(state='closed')
+
+def github_add_labels(**args):
+    issue = _load_issue(**args)
+    if not args['replacelabels']:
+        for label in issue.labels:
+            args['label'].append(label.name)
+    issue.set_labels(*args['label'])
+
+def github_update_pr(**args):
+    was_not_updated = True
+    pr = _load_pr(**args)
+
+    edit_params = {}
+    if args['title']:
+        edit_params['title'] = args['title']
+    if args['body']:
+        edit_params['body'] = args['body']
+
+    if len(edit_params.keys()):
+        pr.edit(**edit_params)
+        was_not_updated = False
+
+    if args['label']:
+        github_add_labels(**args)
+        was_not_updated = False
+
+    if was_not_updated:
+        print "Warning: PR %d was NOT updated, no title or body to edit provided" % args['number']
+
+if __name__ == '__main__':
+    default_token = os.getenv('GITHUB_API_TOKEN')
+
+    with open('README.md', 'r') as readme_file:
+        description = readme_file.read()
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=description)
+    parser.add_argument('action', choices=['create', 'list', 'merge', 'comment', 'delete', 'update'], help='action to take')
+    parser.add_argument('-r', '--repo', required=True, help='the owner/name of the repository')
+    parser.add_argument('-t', '--title', help='the title of the pr')
+    parser.add_argument('-f', '--files', action='store_true', default=False, help='list files in the PR')
+    parser.add_argument('-n', '--number', type=int, help='pr number')
+    parser.add_argument('-l', '--label', nargs='+', help='label(s) to add/apply to the pr (one or more, space separated), or find a list of prs with matching labels (with list action)')
+    parser.add_argument('--base', default='master', help='branch the pr is against')
+    parser.add_argument('--head', help='branch the pr is of')
+    parser.add_argument('--body', default='', help='the description of the pr')
+    parser.add_argument('--replacelabels', action='store_true', help='replace ALL labels during an update')
+    parser.add_argument('--token', default=default_token, help='api token to use')
+    parser.add_argument('--numberonly', action='store_true', help='only return the numbers of the PRs during the list action')
+
+    args = vars(parser.parse_args())
+
+    if args['action'] == 'create':
+        github_create_pr(**args)
+
+    elif args['action'] == 'list':
+        github_list_prs(**args)
+
+    elif args['action'] == 'merge':
+        if args['number']:
+            github_merge_pr_by_number(**args)
+        else:
+            github_merge_pr_by_branch(**args)
+
+    elif args['action'] == 'comment':
+        github_comment_pr(**args)
+
+    elif args['action'] == 'delete':
+        github_delete_pr(**args)
+
+    elif args['action'] == 'update':
+        github_update_pr(**args)
+
+    gh = Github(args['token'])
+    if not args['numberonly']:
+        print "Github Rate Limiting: %d remaining of max %d" % (gh.rate_limiting[0], gh.rate_limiting[1])

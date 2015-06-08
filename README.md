@@ -45,4 +45,4 @@ Delete a PR
     github-pr delete -r dataxu/test_repo -n 17
 
 
-This code was originally developed at DataXu and released as open source under the New BSD License.
+This code was originally developed at [DataXu](https://www.dataxu.com/) and released as open source under the New BSD License.

@@ -1,35 +1,45 @@
 # github-pr
 
-github-pr is a CLI utility script for working with pull requests built on top of PyGithub
+github-pr is a CLI utility script for working with GitHub pull
+requests. It's built on top of the most excellent
+[PyGithub](https://github.com/PyGithub/PyGithub).
+
+## Installation:
+
+    pip install git+ssh://git@github.com/dataxu/github-pr.git
+
+## Prerequisites:
+
+    export GITHUB_API_TOKEN=<your GitHub API token value>
 
 ## Examples:
 
 Show PRs or a specific PR
 
-    ./scripts/github-pr list -r dataxu/dcommand
-    ./scripts/github-pr list -r dataxu/dcommand -n 17
+    github-pr list -r dataxu/test_repo
+    github-pr list -r dataxu/test_repo -n 17
 
 Create a PR
 
-    ./scripts/github-pr create -r dataxu/dcommand -t "PR Title" --head "my-test-branch" --body 'Description Line 1<br/>Line2'
+    github-pr create -r dataxu/test_repo -t "PR Title" --head "my-test-branch" --body 'Description Line 1<br/>Line2'
 
 Create a PR from a fork
 
-    ./scripts/github-pr create -r dataxu/dcommand -t "PR Title" --head "my-fork:my-test-branch"
+    github-pr create -r dataxu/test_repo -t "PR Title" --head "my-fork:my-test-branch"
 
 Comment on a PR
 
-    ./scripts/github-pr comment -r dataxu/dcommand -n 17 --body ":shipit:"
+    github-pr comment -r dataxu/test_repo -n 17 --body ":shipit:"
 
 Merge a PR by PR number
 
-    ./scripts/github-pr merge -r dataxu/dcommand -n 17
+    github-pr merge -r dataxu/test_repo -n 17
 
 Merge a PR by branch
 
-    ./scripts/github-pr merge -r dataxu/dcommand --head dev-my-branch-name
-    ./scripts/github-pr merge -r dataxu/dcommand --head dev-another-branch --base branch-that-is-not-master
+    github-pr merge -r dataxu/test_repo --head dev-my-branch-name
+    github-pr merge -r dataxu/test_repo --head dev-another-branch --base branch-that-is-not-master
 
 Delete a PR
 
-    ./scripts/github-pr delete -r dataxu/dcommand -n 17
+    github-pr delete -r dataxu/test_repo -n 17

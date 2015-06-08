@@ -4,11 +4,13 @@ import sys
 import os
 from github import Github
 
+
 def _check_required_fields(required, **args):
     for i in required:
-        if args[i] == None:
+        if args[i] is None:
             print 'Error: %s parameter not set' % i
             sys.exit(1)
+
 
 def _print_pr(pr, **args):
     if args['numberonly']:
@@ -19,17 +21,20 @@ def _print_pr(pr, **args):
             for f in args['matching_files']:
                 print f
 
+
 def _print_issue(issue, **args):
     if args['numberonly']:
         print "%d" % issue.number
     else:
         print "#%d [%s]  %s" % (issue.number, issue.state, issue.title)
 
+
 def _load_pr(**args):
     _check_required_fields(['token', 'repo', 'number'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
     return repo.get_pull(args['number'])
+
 
 def _load_pr_by_branch(**args):
     _check_required_fields(['token', 'repo', 'head'], **args)
@@ -42,12 +47,14 @@ def _load_pr_by_branch(**args):
             print "#{0} : {1} : {2} -> {3}".format(pull.number, pull.state, pull.head.ref, pull.base.ref)
     return pulls[0]
 
+
 def _load_issue(**args):
     """Load the PR as an issue to enable actions like set_labels"""
     _check_required_fields(['token', 'repo', 'number'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
     return repo.get_issue(args['number'])
+
 
 def github_create_pr(**args):
     _check_required_fields(['token', 'repo', 'title', 'body', 'base', 'head'], **args)
@@ -58,6 +65,7 @@ def github_create_pr(**args):
         args['number'] = pr.number
         github_add_labels(**args)
     _print_pr(pr, **args)
+
 
 def github_list_prs(**args):
     _check_required_fields(['token', 'repo'], **args)
@@ -80,24 +88,29 @@ def github_list_prs(**args):
         for pr in prs:
             _print_pr(pr, **args)
 
+
 def github_merge_pr_by_number(**args):
     _check_required_fields(['token', 'repo', 'number'], **args)
     pr = _load_pr(**args)
     pr.merge()
+
 
 def github_merge_pr_by_branch(**args):
     _check_required_fields(['token', 'repo', 'head'], **args)
     pr = _load_pr_by_branch(**args)
     pr.merge()
 
+
 def github_comment_pr(**args):
     _check_required_fields(['body'], **args)
     pr = _load_pr(**args)
     pr.create_issue_comment(args['body'])
 
+
 def github_delete_pr(**args):
     pr = _load_pr(**args)
     pr.edit(state='closed')
+
 
 def github_add_labels(**args):
     issue = _load_issue(**args)
@@ -105,6 +118,7 @@ def github_add_labels(**args):
         for label in issue.labels:
             args['label'].append(label.name)
     issue.set_labels(*args['label'])
+
 
 def github_update_pr(**args):
     was_not_updated = True
@@ -135,33 +149,33 @@ if __name__ == '__main__':
         description="""
 Show PRs or a specific PR
 
-    ./scripts/github-pr list -r dataxu/dcommand
-    ./scripts/github-pr list -r dataxu/dcommand -n 17
+    github-pr list -r dataxu/test_repo
+    github-pr list -r dataxu/test_repo -n 17
 
 Create a PR
 
-    ./scripts/github-pr create -r dataxu/dcommand -t "PR Title" --head "my-test-branch" --body 'Description Line 1<br/>Line2'
+    github-pr create -r dataxu/test_repo -t "PR Title" --head "my-test-branch" --body 'Description Line 1<br/>Line2'
 
 Create a PR from a fork
 
-    ./scripts/github-pr create -r dataxu/dcommand -t "PR Title" --head "my-fork:my-test-branch"
+    github-pr create -r dataxu/test_repo -t "PR Title" --head "my-fork:my-test-branch"
 
 Comment on a PR
 
-    ./scripts/github-pr comment -r dataxu/dcommand -n 17 --body ":shipit:"
+    github-pr comment -r dataxu/test_repo -n 17 --body ":shipit:"
 
 Merge a PR by PR number
 
-    ./scripts/github-pr merge -r dataxu/dcommand -n 17
+    github-pr merge -r dataxu/test_repo -n 17
 
 Merge a PR by branch
 
-    ./scripts/github-pr merge -r dataxu/dcommand --head dev-my-branch-name
-    ./scripts/github-pr merge -r dataxu/dcommand --head dev-another-branch --base branch-that-is-not-master
+    github-pr merge -r dataxu/test_repo --head dev-my-branch-name
+    github-pr merge -r dataxu/test_repo --head dev-another-branch --base branch-that-is-not-master
 
 Delete a PR
 
-    ./scripts/github-pr delete -r dataxu/dcommand -n 17
+    github-pr delete -r dataxu/test_repo -n 17
         """)
     parser.add_argument('action', choices=['create', 'list', 'merge', 'comment', 'delete', 'update'], help='action to take')
     parser.add_argument('-r', '--repo', required=True, help='the owner/name of the repository')

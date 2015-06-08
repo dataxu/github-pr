@@ -130,12 +130,39 @@ def github_update_pr(**args):
 if __name__ == '__main__':
     default_token = os.getenv('GITHUB_API_TOKEN')
 
-    with open('README.md', 'r') as readme_file:
-        description = readme_file.read()
-
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=description)
+        description="""
+Show PRs or a specific PR
+
+    ./scripts/github-pr list -r dataxu/dcommand
+    ./scripts/github-pr list -r dataxu/dcommand -n 17
+
+Create a PR
+
+    ./scripts/github-pr create -r dataxu/dcommand -t "PR Title" --head "my-test-branch" --body 'Description Line 1<br/>Line2'
+
+Create a PR from a fork
+
+    ./scripts/github-pr create -r dataxu/dcommand -t "PR Title" --head "my-fork:my-test-branch"
+
+Comment on a PR
+
+    ./scripts/github-pr comment -r dataxu/dcommand -n 17 --body ":shipit:"
+
+Merge a PR by PR number
+
+    ./scripts/github-pr merge -r dataxu/dcommand -n 17
+
+Merge a PR by branch
+
+    ./scripts/github-pr merge -r dataxu/dcommand --head dev-my-branch-name
+    ./scripts/github-pr merge -r dataxu/dcommand --head dev-another-branch --base branch-that-is-not-master
+
+Delete a PR
+
+    ./scripts/github-pr delete -r dataxu/dcommand -n 17
+        """)
     parser.add_argument('action', choices=['create', 'list', 'merge', 'comment', 'delete', 'update'], help='action to take')
     parser.add_argument('-r', '--repo', required=True, help='the owner/name of the repository')
     parser.add_argument('-t', '--title', help='the title of the pr')

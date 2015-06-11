@@ -25,4 +25,5 @@ setup(
     url='http://www.dataxu.com',
     version='0.0.1',
     scripts=['github-pr'],
+    keywords=['github'],
 )

@@ -22,8 +22,8 @@ setup(
         'PyGithub',
         'wsgiref'
     ],
-    url='http://www.dataxu.com',
-    version='0.0.1',
+    url='https://github.com/dataxu/github-pr',
+    version='1.0.0',
     scripts=['github-pr'],
     keywords=['github'],
 )

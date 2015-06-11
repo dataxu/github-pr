@@ -6,7 +6,14 @@ requests. It's built on top of the most excellent
 
 ## Installation:
 
+    # from pypi
+    pip install github-pr
+
+    # from github
     pip install git+ssh://git@github.com/dataxu/github-pr.git
+
+    # from source
+    python setup.py install
 
 ## Prerequisites:
 

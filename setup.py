@@ -15,12 +15,14 @@ setup(
     install_requires=[
         'argparse==1.3.0',
         'PyGithub==1.25.2',
-        'wsgiref==0.1.2'
+        'wsgiref==0.1.2',
+        'tabulate==0.7.5'
     ],
     setup_requires=[
         'argparse',
         'PyGithub',
-        'wsgiref'
+        'wsgiref',
+        'tabulate'
     ],
     url='https://github.com/dataxu/github-pr',
     version='1.0.0',

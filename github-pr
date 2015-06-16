@@ -2,6 +2,7 @@
 import argparse
 import sys
 import os
+from tabulate import tabulate
 from github import Github
 
 
@@ -11,6 +12,26 @@ def _check_required_fields(required, **args):
             print 'Error: %s parameter not set' % i
             sys.exit(1)
 
+
+def _print_prs(prs, **args):
+    if args['table']:
+        _print_prs_table(prs, **args)
+    else:
+        for pr in prs:
+            _print_pr(pr, **args)
+
+def _print_prs_table(prs, **args):
+    prs_data = []
+    table_headers = ["#", "State", "Status", "Merge", "Base", "Head", "Title"]
+    for pr in prs:
+        status = "none"
+        try:
+            status_obj = pr.get_commits().reversed[0].get_statuses()[0]
+            status = status_obj.state
+        except Exception as e:
+            pass
+        prs_data.append([pr.number, pr.state, status, pr.mergeable_state, pr.base.ref, pr.head.ref, pr.title.encode('ascii', errors='ignore')])
+    print tabulate(prs_data, headers=table_headers, tablefmt=args['tableformat'])
 
 def _print_pr(pr, **args):
     if args['numberonly']:
@@ -22,13 +43,6 @@ def _print_pr(pr, **args):
                 print f
 
 
-def _print_issue(issue, **args):
-    if args['numberonly']:
-        print "%d" % issue.number
-    else:
-        print "#%d [%s]  %s" % (issue.number, issue.state, issue.title)
-
-
 def _load_pr(**args):
     _check_required_fields(['token', 'repo', 'number'], **args)
     gh = Github(args['token'])
@@ -36,16 +50,15 @@ def _load_pr(**args):
     return repo.get_pull(args['number'])
 
 
-def _load_pr_by_branch(**args):
+def _load_prs_by_branch(**args):
     _check_required_fields(['token', 'repo', 'head'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
-    pulls = [pr for pr in repo.get_pulls() if pr.head.ref == args['head'] and pr.base.ref == args['base']]
-    if len(pulls) is not 1:
-        print "Probable error, found {0} pull(s) from {1} -> {2} (expected 1)".format(len(pulls), args['head'], args['base'])
-        for pull in pulls:
-            print "#{0} : {1} : {2} -> {3}".format(pull.number, pull.state, pull.head.ref, pull.base.ref)
-    return pulls[0]
+    prs = [pr for pr in repo.get_pulls() if pr.head.ref == args['head'] and pr.base.ref == args['base']]
+    if len(prs) is not 1:
+        print "Probable error, found {0} pull(s) from {1} -> {2} (expected 1)".format(len(prs), args['head'], args['base'])
+        _print_prs(prs, **args)
+    return prs
 
 
 def _load_issue(**args):
@@ -77,16 +90,17 @@ def github_list_prs(**args):
         if args['files']:
             pr_files = pr.get_files()
             args['matching_files'] = [f.filename for f in pr_files]
-        _print_pr(pr, **args)
+        _print_prs([pr], **args)
     elif args['label']:
         label_list = [repo.get_label(label) for label in args['label']]
-        issues = repo.get_issues(labels=label_list)
-        for issue in issues:
-            _print_issue(issue, **args)
+        prs = [repo.get_pull(i.number) for i in repo.get_issues(labels=label_list) if i.pull_request]
+        _print_prs(prs, **args)
+    elif args['head']:
+        prs = _load_prs_by_branch(**args)
+        _print_prs(prs, **args)
     else:
         prs = repo.get_pulls()
-        for pr in prs:
-            _print_pr(pr, **args)
+        _print_prs(prs, **args)
 
 
 def github_merge_pr_by_number(**args):
@@ -97,7 +111,7 @@ def github_merge_pr_by_number(**args):
 
 def github_merge_pr_by_branch(**args):
     _check_required_fields(['token', 'repo', 'head'], **args)
-    pr = _load_pr_by_branch(**args)
+    pr = _load_prs_by_branch(**args)[0]
     pr.merge()
 
 
@@ -189,6 +203,9 @@ Delete a PR
     parser.add_argument('--replacelabels', action='store_true', help='replace ALL labels during an update')
     parser.add_argument('--token', default=default_token, help='api token to use')
     parser.add_argument('--numberonly', action='store_true', help='only return the numbers of the PRs during the list action')
+    parser.add_argument('--table', action='store_true', help='show a table of output instead of pretty. not compatible with numberonly')
+    parser.add_argument('--tableformat', default='simple', help='format of table to use')
+    parser.add_argument('--noratelimit', action='store_true', help="don't show the rate limit")
 
     args = vars(parser.parse_args())
 
@@ -214,5 +231,5 @@ Delete a PR
         github_update_pr(**args)
 
     gh = Github(args['token'])
-    if not args['numberonly']:
+    if not args['numberonly'] and not args['noratelimit']:
         print "Github Rate Limiting: %d remaining of max %d" % (gh.rate_limiting[0], gh.rate_limiting[1])

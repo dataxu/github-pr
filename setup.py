@@ -25,7 +25,7 @@ setup(
         'tabulate'
     ],
     url='https://github.com/dataxu/github-pr',
-    version='1.0.0',
+    version='1.1.1',
     scripts=['github-pr'],
     keywords=['github'],
 )

@@ -31,7 +31,10 @@ def _print_prs_table(prs, **args):
         except Exception as e:
             pass
         prs_data.append([pr.number, pr.state, status, pr.mergeable_state, pr.base.ref, pr.head.ref, pr.title.encode('ascii', errors='ignore')])
-    print tabulate(prs_data, headers=table_headers, tablefmt=args['tableformat'])
+    if args['noheaders']:
+        print tabulate(prs_data, tablefmt=args['tableformat'])
+    else:
+        print tabulate(prs_data, headers=table_headers, tablefmt=args['tableformat'])
 
 def _print_pr(pr, **args):
     if args['numberonly']:
@@ -205,6 +208,7 @@ Delete a PR
     parser.add_argument('--numberonly', action='store_true', help='only return the numbers of the PRs during the list action')
     parser.add_argument('--table', action='store_true', help='show a table of output instead of pretty. not compatible with numberonly')
     parser.add_argument('--tableformat', default='simple', help='format of table to use')
+    parser.add_argument('--noheaders', action='store_true', help='remove headers from table view. best for programmatic use of this script')
     parser.add_argument('--noratelimit', action='store_true', help="don't show the rate limit")
 
     args = vars(parser.parse_args())

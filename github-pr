@@ -40,7 +40,7 @@ def _print_pr(pr, **args):
     if args['numberonly']:
         print "%d" % pr.number
     else:
-        print "#%d [%s] %10s <- %-30s    %s" % (pr.number, pr.state, pr.base.ref, pr.head.ref, pr.title)
+        print "#%d [%s] %10s <- %-30s    %s" % (pr.number, pr.state, pr.base.ref, pr.head.ref, pr.title.encode('ascii', errors='ignore'))
         if 'matching_files' in args:
             for f in args['matching_files']:
                 print f

@@ -158,7 +158,9 @@ def github_update_pr(**args):
     if was_not_updated:
         print "Warning: PR %d was NOT updated, no title or body to edit provided" % args['number']
 
-if __name__ == '__main__':
+def main():
+    """ For executing as a script. """
+
     default_token = os.getenv('GITHUB_API_TOKEN')
 
     parser = argparse.ArgumentParser(
@@ -237,3 +239,7 @@ Delete a PR
     gh = Github(args['token'])
     if not args['numberonly'] and not args['noratelimit']:
         print "Github Rate Limiting: %d remaining of max %d" % (gh.rate_limiting[0], gh.rate_limiting[1])
+
+if __name__ == '__main__':
+    main()
+

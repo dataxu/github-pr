@@ -14,7 +14,7 @@ def _check_required_fields(required, **args):
 
 
 def _print_prs(prs, **args):
-    if args['table']:
+    if 'table' in args and args['table']:
         _print_prs_table(prs, **args)
     else:
         for pr in prs:
@@ -31,13 +31,13 @@ def _print_prs_table(prs, **args):
         except Exception as e:
             pass
         prs_data.append([pr.number, pr.state, status, pr.mergeable_state, pr.base.ref, pr.head.ref, pr.title.encode('ascii', errors='ignore')])
-    if args['noheaders']:
+    if 'noheaders' in args and args['noheaders']:
         print tabulate(prs_data, tablefmt=args['tableformat'])
     else:
         print tabulate(prs_data, headers=table_headers, tablefmt=args['tableformat'])
 
 def _print_pr(pr, **args):
-    if args['numberonly']:
+    if 'numberonly' in args and args['numberonly']:
         print "%d" % pr.number
     else:
         print "#%d [%s] %10s <- %-30s    %s" % (pr.number, pr.state, pr.base.ref, pr.head.ref, pr.title.encode('ascii', errors='ignore'))
@@ -77,7 +77,7 @@ def github_create_pr(**args):
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
     pr = repo.create_pull(title=args['title'], body=args['body'], base=args['base'], head=args['head'])
-    if args['label']:
+    if 'lable' in args and args['label']:
         args['number'] = pr.number
         github_add_labels(**args)
     _print_pr(pr, **args)
@@ -88,17 +88,17 @@ def github_list_prs(**args):
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
 
-    if args['number']:
+    if 'number' in args and args['number']:
         pr = repo.get_pull(args['number'])
-        if args['files']:
+        if 'files' in args and args['files']:
             pr_files = pr.get_files()
             args['matching_files'] = [f.filename for f in pr_files]
         _print_prs([pr], **args)
-    elif args['label']:
+    elif 'label' in args and args['label']:
         label_list = [repo.get_label(label) for label in args['label']]
         prs = [repo.get_pull(i.number) for i in repo.get_issues(labels=label_list) if i.pull_request]
         _print_prs(prs, **args)
-    elif args['head']:
+    elif 'head' in args and args['head']:
         prs = _load_prs_by_branch(**args)
         _print_prs(prs, **args)
     else:
@@ -131,7 +131,7 @@ def github_delete_pr(**args):
 
 def github_add_labels(**args):
     issue = _load_issue(**args)
-    if not args['replacelabels']:
+    if (('replacelabels' in args) and not args['replacelabels']):
         for label in issue.labels:
             args['label'].append(label.name)
     issue.set_labels(*args['label'])
@@ -142,16 +142,16 @@ def github_update_pr(**args):
     pr = _load_pr(**args)
 
     edit_params = {}
-    if args['title']:
+    if 'title' in args and args['title']:
         edit_params['title'] = args['title']
-    if args['body']:
+    if 'body' in args and args['body']:
         edit_params['body'] = args['body']
 
     if len(edit_params.keys()):
         pr.edit(**edit_params)
         was_not_updated = False
 
-    if args['label']:
+    if 'label' in args and args['label']:
         github_add_labels(**args)
         was_not_updated = False
 
@@ -215,31 +215,30 @@ Delete a PR
 
     args = vars(parser.parse_args())
 
-    if args['action'] == 'create':
+    if 'action' in args and args['action'] == 'create':
         github_create_pr(**args)
 
-    elif args['action'] == 'list':
+    elif 'action' in args and args['action'] == 'list':
         github_list_prs(**args)
 
-    elif args['action'] == 'merge':
-        if args['number']:
+    elif 'action' in args and args['action'] == 'merge':
+        if 'number' in args and args['number']:
             github_merge_pr_by_number(**args)
         else:
             github_merge_pr_by_branch(**args)
 
-    elif args['action'] == 'comment':
+    elif 'action' in args and args['action'] == 'comment':
         github_comment_pr(**args)
 
-    elif args['action'] == 'delete':
+    elif 'action' in args and args['action'] == 'delete':
         github_delete_pr(**args)
 
-    elif args['action'] == 'update':
+    elif 'action' in args and args['action'] == 'update':
         github_update_pr(**args)
 
     gh = Github(args['token'])
-    if not args['numberonly'] and not args['noratelimit']:
+    if (('numberonly' in args) and not args['numberonly']) or (('noratelimit' in args) and not args['noratelimit']):
         print "Github Rate Limiting: %d remaining of max %d" % (gh.rate_limiting[0], gh.rate_limiting[1])
 
 if __name__ == '__main__':
     main()
-

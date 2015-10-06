@@ -237,7 +237,7 @@ Delete a PR
         github_update_pr(**args)
 
     gh = Github(args['token'])
-    if (('numberonly' not in args) and not args['numberonly']) and (('noratelimit' in args) and not args['noratelimit']):
+    if (('numberonly' in args) and args['numberonly']) and (('noratelimit' in args) and args['noratelimit']):
         print "Github Rate Limiting: %d remaining of max %d" % (gh.rate_limiting[0], gh.rate_limiting[1])
 
 if __name__ == '__main__':

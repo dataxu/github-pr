@@ -131,7 +131,7 @@ def github_delete_pr(**args):
 
 def github_add_labels(**args):
     issue = _load_issue(**args)
-    if 'replacelabels' not in args and not args['replacelabels']:
+    if (('replacelabels' in args) and not args['replacelabels']):
         for label in issue.labels:
             args['label'].append(label.name)
     issue.set_labels(*args['label'])
@@ -237,7 +237,7 @@ Delete a PR
         github_update_pr(**args)
 
     gh = Github(args['token'])
-    if (('numberonly' in args) and args['numberonly']) and (('noratelimit' in args) and args['noratelimit']):
+    if (('numberonly' in args) and not args['numberonly']) or (('noratelimit' in args) and not args['noratelimit']):
         print "Github Rate Limiting: %d remaining of max %d" % (gh.rate_limiting[0], gh.rate_limiting[1])
 
 if __name__ == '__main__':

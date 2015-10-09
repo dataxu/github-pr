@@ -39,6 +39,9 @@ def _print_prs_table(prs, **args):
 def _print_pr(pr, **args):
     if 'numberonly' in args and args['numberonly']:
         print "%d" % pr.number
+    elif 'comments' in args and args['comments']:
+        for comment in pr.get_comments():
+            print "#%d : Comment - %s" % (pr.number, comment.body)
     else:
         print "#%d [%s] %10s <- %-30s    %s" % (pr.number, pr.state, pr.base.ref, pr.head.ref, pr.title.encode('ascii', errors='ignore'))
         if 'matching_files' in args:
@@ -77,7 +80,7 @@ def github_create_pr(**args):
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
     pr = repo.create_pull(title=args['title'], body=args['body'], base=args['base'], head=args['head'])
-    if 'lable' in args and args['label']:
+    if 'label' in args and args['label']:
         args['number'] = pr.number
         github_add_labels(**args)
     _print_pr(pr, **args)
@@ -87,12 +90,16 @@ def github_list_prs(**args):
     _check_required_fields(['token', 'repo'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
+    list_return_obj = None
 
     if 'number' in args and args['number']:
         pr = repo.get_pull(args['number'])
         if 'files' in args and args['files']:
             pr_files = pr.get_files()
             args['matching_files'] = [f.filename for f in pr_files]
+        if 'comments' in args and args['comments']:
+            pr = _load_issue(**args)
+            list_return_obj = pr.get_comments()
         _print_prs([pr], **args)
     elif 'label' in args and args['label']:
         label_list = [repo.get_label(label) for label in args['label']]
@@ -104,6 +111,7 @@ def github_list_prs(**args):
     else:
         prs = repo.get_pulls()
         _print_prs(prs, **args)
+    return list_return_obj
 
 
 def github_merge_pr_by_number(**args):
@@ -202,6 +210,7 @@ Delete a PR
     parser.add_argument('-f', '--files', action='store_true', default=False, help='list files in the PR')
     parser.add_argument('-n', '--number', type=int, help='pr number')
     parser.add_argument('-l', '--label', nargs='+', help='label(s) to add/apply to the pr (one or more, space separated), or find a list of prs with matching labels (with list action)')
+    parser.add_argument('-c', '--comments', action='store_true', help='added to list, to return list of comments')
     parser.add_argument('--base', default='master', help='branch the pr is against')
     parser.add_argument('--head', help='branch the pr is of')
     parser.add_argument('--body', default='', help='the description of the pr')
@@ -237,8 +246,10 @@ Delete a PR
         github_update_pr(**args)
 
     gh = Github(args['token'])
-    if not args['numberonly'] and not args['noratelimit']:
-        print "Github Rate Limiting: %d remaining of max %d" % (gh.rate_limiting[0], gh.rate_limiting[1])
+
+    if (('numberonly' in args) and not args['numberonly']):
+        if (('noratelimit' in args) and not args['noratelimit']):
+            print "Github Rate Limiting: %d remaining of max %d" % (gh.rate_limiting[0], gh.rate_limiting[1])
 
 if __name__ == '__main__':
     main()

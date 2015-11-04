@@ -6,7 +6,7 @@ from tabulate import tabulate
 from github import Github
 
 
-def _check_required_fields(required, **args):
+def check_required_fields(required, **args):
     for i in required:
         if args[i] is None:
             print 'Error: %s parameter not set' % i
@@ -19,6 +19,7 @@ def _print_prs(prs, **args):
     else:
         for pr in prs:
             _print_pr(pr, **args)
+
 
 def _print_prs_table(prs, **args):
     prs_data = []
@@ -36,6 +37,7 @@ def _print_prs_table(prs, **args):
     else:
         print tabulate(prs_data, headers=table_headers, tablefmt=args['tableformat'])
 
+
 def _print_pr(pr, **args):
     if 'numberonly' in args and args['numberonly']:
         print "%d" % pr.number
@@ -50,14 +52,14 @@ def _print_pr(pr, **args):
 
 
 def _load_pr(**args):
-    _check_required_fields(['token', 'repo', 'number'], **args)
+    check_required_fields(['token', 'repo', 'number'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
     return repo.get_pull(args['number'])
 
 
 def _load_prs_by_branch(**args):
-    _check_required_fields(['token', 'repo', 'head'], **args)
+    check_required_fields(['token', 'repo', 'head'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
     prs = [pr for pr in repo.get_pulls() if pr.head.ref == args['head'] and pr.base.ref == args['base']]
@@ -67,16 +69,16 @@ def _load_prs_by_branch(**args):
     return prs
 
 
-def _load_issue(**args):
+def load_issue(**args):
     """Load the PR as an issue to enable actions like set_labels"""
-    _check_required_fields(['token', 'repo', 'number'], **args)
+    check_required_fields(['token', 'repo', 'number'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
     return repo.get_issue(args['number'])
 
 
 def github_create_pr(**args):
-    _check_required_fields(['token', 'repo', 'title', 'body', 'base', 'head'], **args)
+    check_required_fields(['token', 'repo', 'title', 'body', 'base', 'head'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
     pr = repo.create_pull(title=args['title'], body=args['body'], base=args['base'], head=args['head'])
@@ -87,7 +89,7 @@ def github_create_pr(**args):
 
 
 def github_list_prs(**args):
-    _check_required_fields(['token', 'repo'], **args)
+    check_required_fields(['token', 'repo'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
     list_return_obj = None
@@ -98,7 +100,7 @@ def github_list_prs(**args):
             pr_files = pr.get_files()
             args['matching_files'] = [f.filename for f in pr_files]
         if 'comments' in args and args['comments']:
-            pr = _load_issue(**args)
+            pr = load_issue(**args)
             list_return_obj = pr.get_comments()
         _print_prs([pr], **args)
     elif 'label' in args and args['label']:
@@ -115,19 +117,19 @@ def github_list_prs(**args):
 
 
 def github_merge_pr_by_number(**args):
-    _check_required_fields(['token', 'repo', 'number'], **args)
+    check_required_fields(['token', 'repo', 'number'], **args)
     pr = _load_pr(**args)
     pr.merge()
 
 
 def github_merge_pr_by_branch(**args):
-    _check_required_fields(['token', 'repo', 'head'], **args)
+    check_required_fields(['token', 'repo', 'head'], **args)
     pr = _load_prs_by_branch(**args)[0]
     pr.merge()
 
 
 def github_comment_pr(**args):
-    _check_required_fields(['body'], **args)
+    check_required_fields(['body'], **args)
     pr = _load_pr(**args)
     pr.create_issue_comment(args['body'])
 
@@ -138,7 +140,7 @@ def github_delete_pr(**args):
 
 
 def github_add_labels(**args):
-    issue = _load_issue(**args)
+    issue = load_issue(**args)
     if (('replacelabels' in args) and not args['replacelabels']):
         for label in issue.labels:
             args['label'].append(label.name)
@@ -165,6 +167,7 @@ def github_update_pr(**args):
 
     if was_not_updated:
         print "Warning: PR %d was NOT updated, no title or body to edit provided" % args['number']
+
 
 def main():
     """ For executing as a script. """

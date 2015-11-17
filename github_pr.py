@@ -2,6 +2,7 @@
 import argparse
 import sys
 import os
+import re
 from tabulate import tabulate
 from github import Github
 
@@ -77,6 +78,77 @@ def load_issue(**args):
     return repo.get_issue(args['number'])
 
 
+def _validate_list_of_dict(list_of_dict):
+    """
+    Validates that obj is a list containing dictionaries with entries for 'pr' and 'issue'
+    """
+    return isinstance(list_of_dict, list) and 'pr' in list_of_dict[0] and 'issue' in list_of_dict[0]
+
+
+def _return_specific_owner_prs(all_prs, filters):
+    """
+    Takes a list of dictionaries, containing a PR and its Issue Obj
+    filters for an owner and returns filtered list of dictionaries
+    """
+    if _validate_list_of_dict(all_prs):
+        return [pr for pr in all_prs if filters['owner'] == pr['pr'].user.login]
+    else:
+        return []
+
+
+def _return_specific_labeled_prs(all_prs, filters):
+    """
+    Takes a list of dictionaries, containing a PR and its Issue Obj
+    filters for a label and returns filtered list of dictionaries
+    """
+    if _validate_list_of_dict(all_prs):
+        pr_issue = []
+        for pull_request in all_prs:
+            issue = pull_request['issue']
+            labels = issue.get_labels()
+            matched_labels = [label.name for label in labels if filters['label'] == label.name]
+            if matched_labels:
+                pr_issue.append({'pr':pull_request['pr'], 'issue':pull_request['issue']})
+        return pr_issue
+    else:
+        return []
+
+
+def _return_specific_status_prs(all_prs, filters):
+    """
+    Takes a list of dictionaries, containing a PR and its Issue Obj
+    filters for status and returns filtered list of dictionaries
+    """
+    if _validate_list_of_dict(all_prs):
+        pr_issue = []
+        for pull_request in all_prs:
+            commits = pull_request['pr'].get_commits()
+            statuses = [[status.state] for status in commits.reversed[0].get_statuses() if filters['status'] == status.state]
+            if statuses:
+                pr_issue.append({'pr':pull_request['pr'], 'issue':pull_request['issue']})
+        return pr_issue
+    else:
+        return []
+
+
+def _return_specific_comment_prs(all_prs, filters):
+    """
+    Takes a list of dictionaries, containing a PR and its Issue Obj
+    filters for comments and returns filtered list of dictionaries
+    """
+    if _validate_list_of_dict(all_prs):
+        pr_issue = []
+        for pull_request in all_prs:
+            issue = pull_request['issue']
+            comments = issue.get_comments()
+            matched_comments = [comment.body for comment in comments if re.search(filters['comment'], comment.body)]
+            if matched_comments:
+                pr_issue.append({'pr':pull_request['pr'], 'issue':pull_request['issue']})
+        return pr_issue
+    else:
+        return []
+
+
 def github_create_pr(**args):
     check_required_fields(['token', 'repo', 'title', 'body', 'base', 'head'], **args)
     gh = Github(args['token'])
@@ -110,10 +182,38 @@ def github_list_prs(**args):
     elif 'head' in args and args['head']:
         prs = _load_prs_by_branch(**args)
         _print_prs(prs, **args)
+    elif 'filters' in args and args['filters']:
+        prs = [pr['pr'] for pr in github_filter_prs(**args)]
+        _print_prs(prs, **args)
     else:
         prs = repo.get_pulls()
         _print_prs(prs, **args)
     return list_return_obj
+
+
+def github_filter_prs(**args):
+    """
+    Filters prs to return only what is contained in the filters
+    Returns a list of dictionaries, containing a PR obj and its Issue obj
+    """
+    git_hub = Github(args['token'])
+    repo = git_hub.get_repo(args['repo'])
+    all_prs = [{'pr':repo.get_pull(pr.number), 'issue':repo.get_issue(pr.number)} for pr in repo.get_pulls()]
+    filters = {}
+    for filter_option in args['filters'].split(','):
+        part = filter_option.partition("=")
+        filters[part[0]] = part[2]
+
+    if 'owner' in filters:
+        all_prs = _return_specific_owner_prs(all_prs, filters)
+    if 'label' in filters:
+        all_prs = _return_specific_labeled_prs(all_prs, filters)
+    if 'status' in filters:
+        all_prs = _return_specific_status_prs(all_prs, filters)
+    if 'comment' in filters:
+        all_prs = _return_specific_comment_prs(all_prs, filters)
+
+    return all_prs
 
 
 def github_merge_pr_by_number(**args):
@@ -182,6 +282,17 @@ Show PRs or a specific PR
     github-pr list -r dataxu/test_repo
     github-pr list -r dataxu/test_repo -n 17
 
+    - Filters - can be used alone or together
+        --filters
+            * owner - This will return a list of PRs from the repo that are owned by the github-user
+            * status - returns PRs with a specifc status, one of (success, failure, error, pending)
+            * label - returns PRs with a specifc label
+            * comment - returns PRs that have at least one comment matching a given string
+      github-pr list -r dataxu/test_repo --filters 'filter1_name=filter1_value,filter2_name=filter2_value'
+
+      github-pr list -r dataxu/test_repo --filters 'owner=frankenstein,status=success,comment=:pitchfork:'
+            This returns the number of all PRs in the given repo owned by frankenstein with the status success and containing any comments that have ":pitchfork:"
+
 Create a PR
 
     github-pr create -r dataxu/test_repo -t "PR Title" --head "my-test-branch" --body 'Description Line 1<br/>Line2'
@@ -214,6 +325,7 @@ Delete a PR
     parser.add_argument('-n', '--number', type=int, help='pr number')
     parser.add_argument('-l', '--label', nargs='+', help='label(s) to add/apply to the pr (one or more, space separated), or find a list of prs with matching labels (with list action)')
     parser.add_argument('-c', '--comments', action='store_true', help='added to list, to return list of comments')
+    parser.add_argument('--filters', help='add this to the list function with collection of options you want to filter your results for', type=str)
     parser.add_argument('--base', default='master', help='branch the pr is against')
     parser.add_argument('--head', help='branch the pr is of')
     parser.add_argument('--body', default='', help='the description of the pr')

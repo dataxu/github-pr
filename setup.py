@@ -4,7 +4,7 @@
 github-pr setup
 """
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='github_pr',
@@ -12,9 +12,10 @@ setup(
     author_email='mferrante@dataxu.com',
     description='Pull Request utility script',
     license='(c) Copyright 2015. DataXu, Inc. All Rights Reserved.',
+    packages=find_packages(),
     entry_points={
         'console_scripts': [
-            'github-pr = github_pr:main',
+            'github-pr = github_pr.cli:main',
         ]
     },
     install_requires=[
@@ -30,7 +31,6 @@ setup(
         'tabulate'
     ],
     url='https://github.com/dataxu/github-pr',
-    version='1.1.1',
-    scripts=['github_pr.py'],
+    version='2.0.0',
     keywords=['github'],
 )

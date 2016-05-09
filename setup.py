@@ -19,7 +19,7 @@ setup(
     },
     install_requires=[
         'argparse==1.3.0',
-        'PyGithub==1.25.2',
+        'PyGithub==1.25.2-squash',
         'wsgiref==0.1.2',
         'tabulate==0.7.5'
     ],

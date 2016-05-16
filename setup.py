@@ -18,7 +18,7 @@ setup(
         ]
     },
     dependency_links=[
-        'git+ssh://git@github.com/dataxu/PyGithub.git@1.26.1'
+        'https://github.com/dataxu/PyGithub/archive/1.26.1.zip#egg=PyGithub-1.26.1',
     ],
     install_requires=[
         'argparse==1.3.0',

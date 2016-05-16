@@ -17,9 +17,12 @@ setup(
             'github-pr = github_pr:main',
         ]
     },
+    dependency_links=[
+        'git+ssh://git@github.com/dataxu/PyGithub.git@1.26.1'
+    ],
     install_requires=[
         'argparse==1.3.0',
-        'PyGithub==1.25.2-squash',
+        'PyGithub==1.26.1',
         'wsgiref==0.1.2',
         'tabulate==0.7.5'
     ],

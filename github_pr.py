@@ -183,7 +183,7 @@ def _merge_pr(pr, **args):
         merge_comment_users = [comment.user.login for comment in _load_issue(**args).get_comments().reversed if re.search(".*%s.*" % args['mergecomment'], comment.body)]
         if args.get('mergecondition_approved_mergers'):
             merge_comment_users = _check_approved_mergers(args['mergecondition_approved_mergers'], merge_comment_users)
-        if args.get('mergecondition_approved_mergers_file') and os.path.isfile(args['mergecondition_approved_mergers_file']):
+        if args.get('mergecondition_approved_mergers_file'):
             merge_comment_users = _check_approved_mergers_file(args['mergecondition_approved_mergers_file'], merge_comment_users)
         if args.get('mergecondition_owner_cannot_ship'):
             merge_comment_users = _check_owner_cannot_ship(pr.user.login, merge_comment_users)

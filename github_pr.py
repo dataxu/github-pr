@@ -6,6 +6,13 @@ import re
 from tabulate import tabulate
 from github import Github
 
+class NoApproversError(Exception):
+    pass
+
+
+class OwnerCannotShipError(Exception):
+    pass
+
 
 def check_required_fields(required, **args):
     for i in required:
@@ -59,6 +66,14 @@ def _load_pr(**args):
     return repo.get_pull(args['number'])
 
 
+def _load_issue(**args):
+    """Load the PR as an issue to enable actions like set_labels"""
+    check_required_fields(['token', 'repo', 'number'], **args)
+    gh = Github(args['token'])
+    repo = gh.get_repo(args['repo'])
+    return repo.get_issue(args['number'])
+
+
 def _load_prs_by_branch(**args):
     check_required_fields(['token', 'repo', 'head'], **args)
     gh = Github(args['token'])
@@ -68,14 +83,6 @@ def _load_prs_by_branch(**args):
         print "Probable error, found {0} pull(s) from {1} -> {2} (expected 1)".format(len(prs), args['head'], args['base'])
         _print_prs(prs, **args)
     return prs
-
-
-def load_issue(**args):
-    """Load the PR as an issue to enable actions like set_labels"""
-    check_required_fields(['token', 'repo', 'number'], **args)
-    gh = Github(args['token'])
-    repo = gh.get_repo(args['repo'])
-    return repo.get_issue(args['number'])
 
 
 def _validate_list_of_dict(list_of_dict):
@@ -149,6 +156,43 @@ def _return_specific_comment_prs(all_prs, filters):
         return []
 
 
+def _check_approved_mergers(approved_users, comment_users):
+    comment_approved_users = [comment_user for comment_user in comment_users if comment_user in approved_users]
+    if not comment_approved_users:
+        raise NoApproversError("No approved mergers were found in comments - Approved mergers: %s " % approved_users)
+    else:
+        return comment_approved_users
+
+
+def _check_approved_mergers_file(approved_mergers_file, comment_users):
+    with open(approved_mergers_file) as approved_mergers_file:
+        approved_users = approved_mergers_file.read().splitlines()
+    return _check_approved_mergers(approved_users, comment_users)
+
+
+def _check_owner_cannot_ship(owner, comment_users):
+    matched_comment_non_owner_users = [comment_user for comment_user in comment_users if comment_user != owner]
+    if not matched_comment_non_owner_users:
+        raise OwnerCannotShipError("Owner cannot ship their own code - Owner: %s" % str(owner))
+    else:
+        return matched_comment_non_owner_users
+
+
+def _merge_pr(pr, **args):
+    if args['mergecondition_approved_mergers'] or args['mergecondition_approved_mergers_file'] or args['mergecondition_owner_cannot_ship']:
+        merge_comment_users = [comment.user.login for comment in _load_issue(**args).get_comments().reversed if re.search(".*%s.*" % args['mergecomment'], comment.body)]
+        if args.get('mergecondition_approved_mergers'):
+            merge_comment_users = _check_approved_mergers(args['mergecondition_approved_mergers'], merge_comment_users)
+        if args.get('mergecondition_approved_mergers_file') and os.path.isfile(args['mergecondition_approved_mergers_file']):
+            merge_comment_users = _check_approved_mergers_file(args['mergecondition_approved_mergers_file'], merge_comment_users)
+        if args.get('mergecondition_owner_cannot_ship'):
+            merge_comment_users = _check_owner_cannot_ship(pr.user.login, merge_comment_users)
+        if merge_comment_users:
+            pr.merge()
+    else:
+        pr.merge()
+
+
 def github_create_pr(**args):
     check_required_fields(['token', 'repo', 'title', 'body', 'base', 'head'], **args)
     gh = Github(args['token'])
@@ -172,7 +216,7 @@ def github_list_prs(**args):
             pr_files = pr.get_files()
             args['matching_files'] = [f.filename for f in pr_files]
         if 'comments' in args and args['comments']:
-            pr = load_issue(**args)
+            pr = _load_issue(**args)
             list_return_obj = pr.get_comments()
         _print_prs([pr], **args)
     elif 'label' in args and args['label']:
@@ -219,13 +263,13 @@ def github_filter_prs(**args):
 def github_merge_pr_by_number(**args):
     check_required_fields(['token', 'repo', 'number'], **args)
     pr = _load_pr(**args)
-    pr.merge()
+    _merge_pr(pr, **args)
 
 
 def github_merge_pr_by_branch(**args):
     check_required_fields(['token', 'repo', 'head'], **args)
     pr = _load_prs_by_branch(**args)[0]
-    pr.merge()
+    _merge_pr(pr, **args)
 
 
 def github_comment_pr(**args):
@@ -240,7 +284,7 @@ def github_delete_pr(**args):
 
 
 def github_add_labels(**args):
-    issue = load_issue(**args)
+    issue = _load_issue(**args)
     if (('replacelabels' in args) and not args['replacelabels']):
         for label in issue.labels:
             args['label'].append(label.name)
@@ -309,6 +353,14 @@ Merge a PR by PR number
 
     github-pr merge -r dataxu/test_repo -n 17
 
+    github-pr merge -r dataxu/test_repo -n 17 --mergecondition-owner-cannot-ship --mergecondition-approved-mergers-file=.approved-mergers-file
+        This conditional option allows merges to go through checks that validate ownership and team hierarchy.
+            ie.
+                --mergecondition-approved-mergers=[user1,user2,user3]
+                or
+                --mergecondition-approved-mergers-file=.approved-mergers-file
+        OPTIONAL: --mergecomment can be set to a different string to search for instead of ":shipit:"
+
 Merge a PR by branch
 
     github-pr merge -r dataxu/test_repo --head dev-my-branch-name
@@ -336,6 +388,10 @@ Delete a PR
     parser.add_argument('--tableformat', default='simple', help='format of table to use')
     parser.add_argument('--noheaders', action='store_true', help='remove headers from table view. best for programmatic use of this script')
     parser.add_argument('--noratelimit', action='store_true', help="don't show the rate limit")
+    parser.add_argument('--mergecomment', default=":shipit:", help='string to look for when checking comments for "shipit" approval, during MERGE only')
+    parser.add_argument('--mergecondition-owner-cannot-ship', action='store_true', help='stops owner from being able to apply merge comment')
+    parser.add_argument('--mergecondition-approved-mergers', default=None, nargs='*', help='list of usernames of approved mergers')
+    parser.add_argument('--mergecondition-approved-mergers-file', default=None, help='file of usernames of approved mergers')
 
     args = vars(parser.parse_args())
 

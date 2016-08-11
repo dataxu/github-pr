@@ -7,7 +7,7 @@ github-pr setup
 from setuptools import setup
 
 setup(
-    name='github_pr',
+    name='github-pr',
     author='DataXu',
     author_email='mferrante@dataxu.com',
     description='Pull Request utility script',
@@ -30,7 +30,7 @@ setup(
         'tabulate'
     ],
     url='https://github.com/dataxu/github-pr',
-    version='1.1.1',
+    version='1.2.1',
     scripts=['github_pr.py'],
     keywords=['github'],
 )

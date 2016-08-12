@@ -32,7 +32,7 @@ setup(
         'tabulate'
     ],
     url='https://github.com/dataxu/github-pr',
-    version='2.0.0',
+    version='2.0.1',
     scripts=['github_pr.py'],
     keywords=['github']
 )

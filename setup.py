@@ -19,9 +19,11 @@ setup(
     },
     install_requires=[
         'argparse==1.3.0',
-        'PyGithub>=1.25.2',
+        'PyGithub>=1.27.0',
         'wsgiref==0.1.2',
-        'tabulate==0.7.5'
+        'tabulate==0.7.5',
+        'tzlocal',
+        'pytz'
     ],
     setup_requires=[
         'argparse',
@@ -30,7 +32,7 @@ setup(
         'tabulate'
     ],
     url='https://github.com/dataxu/github-pr',
-    version='1.2.1',
+    version='2.0.0',
     scripts=['github_pr.py'],
-    keywords=['github'],
+    keywords=['github']
 )

@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 import argparse
+from datetime import datetime
+import pytz
+from tzlocal import get_localzone
 import sys
 import os
 import re
@@ -11,6 +14,9 @@ class NoApproversError(Exception):
 
 
 class OwnerCannotShipError(Exception):
+    pass
+
+class NoMergeCommentError(Exception):
     pass
 
 
@@ -179,18 +185,40 @@ def _check_owner_cannot_ship(owner, comment_users):
 
 
 def _merge_pr(pr, **args):
-    if args['mergecondition_approved_mergers'] or args['mergecondition_approved_mergers_file'] or args['mergecondition_owner_cannot_ship']:
+    if args['condition_approved_mergers'] or args['condition_approved_mergers_file'] or args['condition_non_owner_merger']:
         merge_comment_users = [comment.user.login for comment in _load_issue(**args).get_comments().reversed if re.search(".*%s.*" % args['mergecomment'], comment.body)]
-        if args.get('mergecondition_approved_mergers'):
-            merge_comment_users = _check_approved_mergers(args['mergecondition_approved_mergers'], merge_comment_users)
-        if args.get('mergecondition_approved_mergers_file'):
-            merge_comment_users = _check_approved_mergers_file(args['mergecondition_approved_mergers_file'], merge_comment_users)
-        if args.get('mergecondition_owner_cannot_ship'):
+        if args.get('condition_approved_mergers'):
+            merge_comment_users = _check_approved_mergers(args['condition_approved_mergers'], merge_comment_users)
+        if args.get('condition_approved_mergers_file'):
+            merge_comment_users = _check_approved_mergers_file(args['condition_approved_mergers_file'], merge_comment_users)
+        if args.get('condition_non_owner_merger'):
             merge_comment_users = _check_owner_cannot_ship(pr.user.login, merge_comment_users)
         if merge_comment_users:
             pr.merge()
     else:
         pr.merge()
+
+def github_check_condition(**args):
+    tz_local = get_localzone()
+    check_required_fields(['token', 'repo', 'number'], **args)
+    gh = Github(args['token'])
+    repo = gh.get_repo(args['repo'])
+    pr = repo.get_pull(args['number'])
+    issue = _load_issue(**args)
+    last_commit_time = pytz.utc.localize(datetime.strptime(pr.get_commits().reversed[0].commit.raw_data['committer']['date'], '%Y-%m-%dT%H:%M:%SZ')).astimezone(tz_local)
+    merge_comment_users = [comment.user.login for comment in issue.get_comments(since=last_commit_time).reversed if re.search('.*%s.*' % args['mergecomment'], comment.body) and comment.updated_at == comment.created_at]
+
+    if not merge_comment_users:
+        raise NoMergeCommentError("There are no merge comments associated with this PR")
+
+    if args.get('condition_non_owner_merger'):
+        merge_comment_users = _check_owner_cannot_ship(pr.user.login, merge_comment_users)
+    if args.get('condition_approved_mergers_file'):
+        merge_comment_users = _check_approved_mergers_file(args['condition_approved_mergers_file'], merge_comment_users)
+    if args.get('condition_approved_mergers'):
+        merge_comment_users = _check_approved_mergers(args['condition_approved_mergers'], merge_comment_users)
+
+    return merge_comment_users
 
 
 def github_create_pr(**args):
@@ -353,12 +381,13 @@ Merge a PR by PR number
 
     github-pr merge -r dataxu/test_repo -n 17
 
-    github-pr merge -r dataxu/test_repo -n 17 --mergecondition-owner-cannot-ship --mergecondition-approved-mergers-file=.approved-mergers-file
+    github-pr merge -r dataxu/test_repo -n 17 --condition-non-owner-merger --condition-approved-mergers-file=.approved-mergers-file
         This conditional option allows merges to go through checks that validate ownership and team hierarchy.
             ie.
-                --mergecondition-approved-mergers=[user1,user2,user3]
+                --condition-approved-mergers user1 user2 user3
+                    This takes a SPACE-separated list, without quotes or braces
                 or
-                --mergecondition-approved-mergers-file=.approved-mergers-file
+                --condition-approved-mergers-file=.approved-mergers-file
         OPTIONAL: --mergecomment can be set to a different string to search for instead of ":shipit:"
 
 Merge a PR by branch
@@ -369,8 +398,24 @@ Merge a PR by branch
 Delete a PR
 
     github-pr delete -r dataxu/test_repo -n 17
+
+Check conditional status checks
+    !!!This check only looks at comments AFTER the latest commit, to validate that the
+    most recent code (most recent git sha pushed to the PR) has been peer reviewed!!!
+
+    github-pr check-condition -r dataxu/dcommand -n 84 --condition-non-owner-merger
+        This will check to make sure that the owner can not apply a shipable comment on their own code
+    github-pr check-condition -r dataxu/dcommand -n84 --condition-approved-mergers-file=<MAINTAINERS FILE>
+        This takes the path to the MAINTAINERS file inside the repo
+        Compares commenter to list from a file, single user per line, and checks to make sure they are an approved merger
+    github-pr check-condition -r dataxu/dcommand -n 84 --condition-approved-mergers ned_flanders marge_simpson
+        This takes a SPACE-separated list, without quotes or braces
+        This will check that a comment containing a :shipit: (the default, or other defined comment if merge_comment is set)
+        comes from a user in the provided list passed on the commandline. The "MAINTAINERS file" option above is the preferred
+        convention to use, while this passing the list on the commandline option is primarily for local testing
+        when setting up your CD flow.
         """)
-    parser.add_argument('action', choices=['create', 'list', 'merge', 'comment', 'delete', 'update'], help='action to take')
+    parser.add_argument('action', choices=['create', 'list', 'merge', 'comment', 'delete', 'update', 'check-condition'], help='action to take')
     parser.add_argument('-r', '--repo', required=True, help='the owner/name of the repository')
     parser.add_argument('-t', '--title', help='the title of the pr')
     parser.add_argument('-f', '--files', action='store_true', default=False, help='list files in the PR')
@@ -389,9 +434,9 @@ Delete a PR
     parser.add_argument('--noheaders', action='store_true', help='remove headers from table view. best for programmatic use of this script')
     parser.add_argument('--noratelimit', action='store_true', help="don't show the rate limit")
     parser.add_argument('--mergecomment', default=":shipit:", help='string to look for when checking comments for "shipit" approval, during MERGE only')
-    parser.add_argument('--mergecondition-owner-cannot-ship', action='store_true', help='stops owner from being able to apply merge comment')
-    parser.add_argument('--mergecondition-approved-mergers', default=None, nargs='*', help='list of usernames of approved mergers')
-    parser.add_argument('--mergecondition-approved-mergers-file', default=None, help='file of usernames of approved mergers')
+    parser.add_argument('--condition-non-owner-merger', action='store_true', help='stops owner from being able to apply merge comment')
+    parser.add_argument('--condition-approved-mergers', default=None, nargs='+', help='list of usernames of approved mergers')
+    parser.add_argument('--condition-approved-mergers-file', default=None, help='file of usernames of approved mergers')
 
     args = vars(parser.parse_args())
 
@@ -415,6 +460,9 @@ Delete a PR
 
     elif 'action' in args and args['action'] == 'update':
         github_update_pr(**args)
+
+    elif 'action' in args and args['action'] == 'check-condition':
+        github_check_condition(**args)
 
     gh = Github(args['token'])
 

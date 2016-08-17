@@ -37,7 +37,7 @@ def _print_prs(prs, **args):
 
 def _print_prs_table(prs, **args):
     prs_data = []
-    table_headers = ["#", "State", "Status", "Merge", "Base", "Head", "Title"]
+    table_headers = ["#", "State", "Status", "Merge", "BaseFork", "Base", "HeadFork", "Head", "Title"]
     for pr in prs:
         status = "none"
         try:
@@ -45,7 +45,7 @@ def _print_prs_table(prs, **args):
             status = status_obj.state
         except Exception as e:
             pass
-        prs_data.append([pr.number, pr.state, status, pr.mergeable_state, pr.base.ref, pr.head.ref, pr.title.encode('ascii', errors='ignore')])
+        prs_data.append([pr.number, pr.state, status, pr.mergeable_state, pr.base.repo.owner.login, pr.base.ref, pr.head.repo.owner.login, pr.head.ref, pr.title.encode('ascii', errors='ignore')])
     if 'noheaders' in args and args['noheaders']:
         print tabulate(prs_data, tablefmt=args['tableformat'])
     else:
@@ -59,7 +59,7 @@ def _print_pr(pr, **args):
         for comment in pr.get_comments():
             print "#%d : Comment - %s" % (pr.number, comment.body)
     else:
-        print "#%d [%s] %10s <- %-30s    %s" % (pr.number, pr.state, pr.base.ref, pr.head.ref, pr.title.encode('ascii', errors='ignore'))
+        print "#%d [%s] %10s:%s <- %s:%-30s    %s" % (pr.number, pr.state, pr.base.repo.owner.login, pr.base.ref, pr.head.repo.owner.login, pr.head.ref, pr.title.encode('ascii', errors='ignore'))
         if 'matching_files' in args:
             for f in args['matching_files']:
                 print f

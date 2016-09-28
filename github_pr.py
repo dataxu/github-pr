@@ -436,7 +436,7 @@ Check conditional status checks
     parser.add_argument('--mergecomment', default=":shipit:", help='string to look for when checking comments for "shipit" approval, during MERGE only')
     parser.add_argument('--condition-non-owner-merger', action='store_true', help='stops owner from being able to apply merge comment')
     parser.add_argument('--condition-approved-mergers', default=None, nargs='+', help='list of usernames of approved mergers')
-    parser.add_argument('--condition-approved-mergers-file', default=None, help='file of usernames of approved mergers')
+    parser.add_argument('--condition-approved-mergers-file', default='./MAINTAINERS.txt', help='file of usernames of approved mergers')
 
     args = vars(parser.parse_args())
 

@@ -9,12 +9,14 @@ import re
 from tabulate import tabulate
 from github import Github
 
+
 class NoApproversError(Exception):
     pass
 
 
 class OwnerCannotShipError(Exception):
     pass
+
 
 class NoMergeCommentError(Exception):
     pass
@@ -185,18 +187,19 @@ def _check_owner_cannot_ship(owner, comment_users):
 
 
 def _merge_pr(pr, **args):
-    if args['condition_approved_mergers'] or args['condition_approved_mergers_file'] or args['condition_non_owner_merger']:
+    if args['condition_approved_mergers'] or args['condition_use_approved_mergers_file'] or args['condition_non_owner_merger']:
         merge_comment_users = [comment.user.login for comment in _load_issue(**args).get_comments().reversed if re.search(".*%s.*" % args['mergecomment'], comment.body)]
         if args.get('condition_approved_mergers'):
             merge_comment_users = _check_approved_mergers(args['condition_approved_mergers'], merge_comment_users)
-        if args.get('condition_approved_mergers_file'):
-            merge_comment_users = _check_approved_mergers_file(args['condition_approved_mergers_file'], merge_comment_users)
+        if args.get('condition_use_approved_mergers_file'):
+            merge_comment_users = _check_approved_mergers_file(args['approved_mergers_file_path'], merge_comment_users)
         if args.get('condition_non_owner_merger'):
             merge_comment_users = _check_owner_cannot_ship(pr.user.login, merge_comment_users)
         if merge_comment_users:
             pr.merge()
     else:
         pr.merge()
+
 
 def github_check_condition(**args):
     tz_local = get_localzone()
@@ -213,8 +216,8 @@ def github_check_condition(**args):
 
     if args.get('condition_non_owner_merger'):
         merge_comment_users = _check_owner_cannot_ship(pr.user.login, merge_comment_users)
-    if args.get('condition_approved_mergers_file'):
-        merge_comment_users = _check_approved_mergers_file(args['condition_approved_mergers_file'], merge_comment_users)
+    if args.get('condition_use_approved_mergers_file'):
+        merge_comment_users = _check_approved_mergers_file(args['approved_mergers_file_path'], merge_comment_users)
     if args.get('condition_approved_mergers'):
         merge_comment_users = _check_approved_mergers(args['condition_approved_mergers'], merge_comment_users)
 
@@ -381,13 +384,13 @@ Merge a PR by PR number
 
     github-pr merge -r dataxu/test_repo -n 17
 
-    github-pr merge -r dataxu/test_repo -n 17 --condition-non-owner-merger --condition-approved-mergers-file=.approved-mergers-file
+    github-pr merge -r dataxu/test_repo -n 17 --condition-non-owner-merger --condition-use-approved-mergers-file=.approved-mergers-file
         This conditional option allows merges to go through checks that validate ownership and team hierarchy.
             ie.
                 --condition-approved-mergers user1 user2 user3
                     This takes a SPACE-separated list, without quotes or braces
                 or
-                --condition-approved-mergers-file=.approved-mergers-file
+                --condition-use-approved-mergers-file=.approved-mergers-file
         OPTIONAL: --mergecomment can be set to a different string to search for instead of ":shipit:"
 
 Merge a PR by branch
@@ -405,7 +408,7 @@ Check conditional status checks
 
     github-pr check-condition -r dataxu/dcommand -n 84 --condition-non-owner-merger
         This will check to make sure that the owner can not apply a shipable comment on their own code
-    github-pr check-condition -r dataxu/dcommand -n84 --condition-approved-mergers-file=<MAINTAINERS FILE>
+    github-pr check-condition -r dataxu/dcommand -n84 --condition-use-approved-mergers-file=<MAINTAINERS FILE>
         This takes the path to the MAINTAINERS file inside the repo
         Compares commenter to list from a file, single user per line, and checks to make sure they are an approved merger
     github-pr check-condition -r dataxu/dcommand -n 84 --condition-approved-mergers ned_flanders marge_simpson
@@ -436,7 +439,8 @@ Check conditional status checks
     parser.add_argument('--mergecomment', default=":shipit:", help='string to look for when checking comments for "shipit" approval, during MERGE only')
     parser.add_argument('--condition-non-owner-merger', action='store_true', help='stops owner from being able to apply merge comment')
     parser.add_argument('--condition-approved-mergers', default=None, nargs='+', help='list of usernames of approved mergers')
-    parser.add_argument('--condition-approved-mergers-file', default='./MAINTAINERS.txt', nargs='?', help='file of usernames of approved mergers')
+    parser.add_argument('--condition-use-approved-mergers-file', action='store_true', help='check a file for list of usernames of approved mergers')
+    parser.add_argument('--approved-mergers-file-path', default='./MAINTAINERS.txt', help='location of file of usernames of approved mergers')
 
     args = vars(parser.parse_args())
 

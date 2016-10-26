@@ -187,11 +187,11 @@ def _check_owner_cannot_ship(owner, comment_users):
 
 
 def _merge_pr(pr, **args):
-    if args['condition_approved_mergers'] or args['condition_use_approved_mergers_file'] or args['condition_non_owner_merger']:
+    if args['condition_approved_mergers'] or args['condition_approved_mergers_file'] or args['condition_non_owner_merger']:
         merge_comment_users = [comment.user.login for comment in _load_issue(**args).get_comments().reversed if re.search(".*%s.*" % args['mergecomment'], comment.body)]
         if args.get('condition_approved_mergers'):
             merge_comment_users = _check_approved_mergers(args['condition_approved_mergers'], merge_comment_users)
-        if args.get('condition_use_approved_mergers_file'):
+        if args.get('condition_approved_mergers_file'):
             merge_comment_users = _check_approved_mergers_file(args['approved_mergers_file_path'], merge_comment_users)
         if args.get('condition_non_owner_merger'):
             merge_comment_users = _check_owner_cannot_ship(pr.user.login, merge_comment_users)
@@ -216,7 +216,7 @@ def github_check_condition(**args):
 
     if args.get('condition_non_owner_merger'):
         merge_comment_users = _check_owner_cannot_ship(pr.user.login, merge_comment_users)
-    if args.get('condition_use_approved_mergers_file'):
+    if args.get('condition_approved_mergers_file'):
         merge_comment_users = _check_approved_mergers_file(args['approved_mergers_file_path'], merge_comment_users)
     if args.get('condition_approved_mergers'):
         merge_comment_users = _check_approved_mergers(args['condition_approved_mergers'], merge_comment_users)

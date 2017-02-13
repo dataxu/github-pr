@@ -6,6 +6,7 @@ from tzlocal import get_localzone
 import sys
 import os
 import re
+import logging
 from tabulate import tabulate
 from github import Github
 
@@ -21,11 +22,12 @@ class OwnerCannotShipError(Exception):
 class NoMergeCommentError(Exception):
     pass
 
+logger = logging.getLogger()
 
 def check_required_fields(required, **args):
     for i in required:
         if args[i] is None:
-            print 'Error: %s parameter not set' % i
+            logger.error(' %s parameter not set', i.upper())
             sys.exit(1)
 
 
@@ -49,8 +51,10 @@ def _print_prs_table(prs, **args):
             pass
         prs_data.append([pr.number, pr.state, status, pr.mergeable_state, pr.base.repo.owner.login, pr.base.ref, pr.head.repo.owner.login, pr.head.ref, pr.title.encode('ascii', errors='ignore')])
     if 'noheaders' in args and args['noheaders']:
+        logger.debug("NO HEADERS")
         print tabulate(prs_data, tablefmt=args['tableformat'])
     else:
+        logger.debug("HEADERS - %s", table_headers)
         print tabulate(prs_data, headers=table_headers, tablefmt=args['tableformat'])
 
 
@@ -71,7 +75,9 @@ def _load_pr(**args):
     check_required_fields(['token', 'repo', 'number'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
-    return repo.get_pull(args['number'])
+    pull_request = repo.get_pull(args['number'])
+    logger.debug(" PR: %s", pull_request)
+    return pull_request
 
 
 def _load_issue(**args):
@@ -79,7 +85,9 @@ def _load_issue(**args):
     check_required_fields(['token', 'repo', 'number'], **args)
     gh = Github(args['token'])
     repo = gh.get_repo(args['repo'])
-    return repo.get_issue(args['number'])
+    issue = repo.get_issue(args['number'])
+    logger.debug(" ISSUE: %s", issue.number)
+    return issue
 
 
 def _load_prs_by_branch(**args):
@@ -88,7 +96,7 @@ def _load_prs_by_branch(**args):
     repo = gh.get_repo(args['repo'])
     prs = [pr for pr in repo.get_pulls() if pr.head.ref == args['head'] and pr.base.ref == args['base']]
     if len(prs) is not 1:
-        print "Probable error, found {0} pull(s) from {1} -> {2} (expected 1)".format(len(prs), args['head'], args['base'])
+        logger.error("Probable error, found %s pull(s) from %s -> %s (expected 1)", len(prs), args['head'], args['base'])
         _print_prs(prs, **args)
     return prs
 
@@ -106,7 +114,9 @@ def _return_specific_owner_prs(all_prs, filters):
     filters for an owner and returns filtered list of dictionaries
     """
     if _validate_list_of_dict(all_prs):
-        return [pr for pr in all_prs if filters['owner'] == pr['pr'].user.login]
+        owner_prs = [pr for pr in all_prs if filters['owner'] == pr['pr'].user.login]
+        logger.debug("OWNER PRS: %s", [pr['pr'].number for pr in owner_prs])
+        return owner_prs
     else:
         return []
 
@@ -122,6 +132,7 @@ def _return_specific_labeled_prs(all_prs, filters):
             issue = pull_request['issue']
             labels = issue.get_labels()
             matched_labels = [label.name for label in labels if filters['label'] == label.name]
+            logger.debug("MATCHED LABELS: %s", matched_labels)
             if matched_labels:
                 pr_issue.append({'pr':pull_request['pr'], 'issue':pull_request['issue']})
         return pr_issue
@@ -141,6 +152,8 @@ def _return_specific_status_prs(all_prs, filters):
             statuses = [[status.state] for status in commits.reversed[0].get_statuses() if filters['status'] == status.state]
             if statuses:
                 pr_issue.append({'pr':pull_request['pr'], 'issue':pull_request['issue']})
+                statuses = []
+        logger.debug("SPECIFIC PR STATUSES: %s", [pr['pr'].number for pr in pr_issue])
         return pr_issue
     else:
         return []
@@ -156,9 +169,11 @@ def _return_specific_comment_prs(all_prs, filters):
         for pull_request in all_prs:
             issue = pull_request['issue']
             comments = issue.get_comments()
+            logger.debug("COMMENTS: %s", [comment.body for comment in comments])
             matched_comments = [comment.body for comment in comments if re.search(filters['comment'], comment.body)]
             if matched_comments:
                 pr_issue.append({'pr':pull_request['pr'], 'issue':pull_request['issue']})
+        logger.debug("MATCHED COMMENTS: %s", matched_comments)
         return pr_issue
     else:
         return []
@@ -209,11 +224,15 @@ def github_check_condition(**args):
     pr = repo.get_pull(args['number'])
     issue = _load_issue(**args)
     last_commit_time = pytz.utc.localize(datetime.strptime(pr.get_commits().reversed[0].commit.raw_data['committer']['date'], '%Y-%m-%dT%H:%M:%SZ')).astimezone(tz_local)
-    merge_comment_users = [comment.user.login for comment in issue.get_comments(since=last_commit_time).reversed if re.search('.*%s.*' % args['mergecomment'], comment.body) and comment.updated_at == comment.created_at]
+    issue_comments = issue.get_comments(since=last_commit_time).reversed
+    merge_comment_users = [comment.user.login for comment in issue_comments if re.search('.*%s.*' % args['mergecomment'], comment.body) and comment.updated_at == comment.created_at]
+    logger.debug("MERGE COMMENTS %s", [[comment.user.login, comment.body] for comment in issue_comments])
 
     if not merge_comment_users:
         raise NoMergeCommentError("There are no merge comments associated with this PR")
 
+    logger.debug("PR OWNER: %s", pr.user.login)
+    logger.debug("MERGER: %s", merge_comment_users)
     if args.get('condition_non_owner_merger'):
         merge_comment_users = _check_owner_cannot_ship(pr.user.login, merge_comment_users)
     if args.get('condition_approved_mergers_file'):
@@ -441,8 +460,18 @@ Check conditional status checks
     parser.add_argument('--condition-approved-mergers', default=None, nargs='+', help='list of usernames of approved mergers')
     parser.add_argument('--condition-approved-mergers-file', action='store_true', help='check a file for list of usernames of approved mergers')
     parser.add_argument('--approved-mergers-file-path', default='./MAINTAINERS.txt', help='location of file of usernames of approved mergers')
+    parser.add_argument('-v', '--verbose', const=1, default=0, type=int, nargs="?",
+                    help="Logger verbosity: 0 = WARN (default), 1 = INFO, 2 = DEBUG")
 
     args = vars(parser.parse_args())
+    logging.basicConfig(format="%(asctime)s %(levelname)-7s %(filename)20s:%(lineno)-4d | %(message)s")
+
+    if args['verbose'] == 0:
+        logger.setLevel(logging.WARN) 
+    elif args['verbose'] == 1:
+        logger.setLevel(logging.INFO) 
+    elif args['verbose'] == 2:
+        logger.setLevel(logging.DEBUG)
 
     if 'action' in args and args['action'] == 'create':
         github_create_pr(**args)

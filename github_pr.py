@@ -191,7 +191,7 @@ def _check_approved_mergers(approved_users, comment_users):
 def _check_approved_mergers_file(approved_mergers_file, comment_users):
     with open(approved_mergers_file) as approved_mergers_file:
         approved_users = approved_mergers_file.read().splitlines()
-        logger.debug(" APPROVED MERGERS FILE CONTENTS: %s", approved_users)
+    logger.debug(" APPROVED MERGERS FILE CONTENTS: %s", approved_users)
     return _check_approved_mergers(approved_users, comment_users)
 
 

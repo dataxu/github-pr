@@ -181,6 +181,7 @@ def _return_specific_comment_prs(all_prs, filters):
 
 def _check_approved_mergers(approved_users, comment_users):
     comment_approved_users = [comment_user for comment_user in comment_users if comment_user in approved_users]
+    logger.debug(" APPROVED MERGERS WITH COMMENTS: %s", comment_approved_users)
     if not comment_approved_users:
         raise NoApproversError("No approved mergers were found in comments - Approved mergers: %s " % approved_users)
     else:
@@ -190,6 +191,7 @@ def _check_approved_mergers(approved_users, comment_users):
 def _check_approved_mergers_file(approved_mergers_file, comment_users):
     with open(approved_mergers_file) as approved_mergers_file:
         approved_users = approved_mergers_file.read().splitlines()
+    logger.debug(" APPROVED MERGERS FILE CONTENTS: %s", approved_users)
     return _check_approved_mergers(approved_users, comment_users)
 
 

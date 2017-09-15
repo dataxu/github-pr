@@ -1,0 +1,3 @@
+CODEOWNERS @dataxu/releng
+Dockerfile @dataxu/releng
+Jenkinsfile @dataxu/releng

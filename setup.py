@@ -19,7 +19,7 @@ setup(
     },
     install_requires=[
         'argparse==1.3.0',
-        'PyGithub>=1.27.0',
+        'PyGithub==1.39.0',
         'wsgiref==0.1.2',
         'tabulate==0.7.5',
         'tzlocal',
